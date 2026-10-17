@@ -3,12 +3,12 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
-} from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+} from "@nestjs/common";
+import { Observable, tap } from "rxjs";
 import {
   httpRequestDuration,
   httpRequestsTotal,
-} from '../../config/prometheus-config';
+} from "../../config/prometheus-config";
 
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {

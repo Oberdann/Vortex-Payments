@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   Payment: 'Payment',
+  PaymentAttempt: 'PaymentAttempt',
   OutboxEvent: 'OutboxEvent',
   InboxEvent: 'InboxEvent'
 } as const
@@ -80,11 +81,26 @@ export const PaymentScalarFieldEnum = {
   providerPaymentId: 'providerPaymentId',
   providerPreferenceId: 'providerPreferenceId',
   checkoutUrl: 'checkoutUrl',
+  currentAttemptId: 'currentAttemptId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type PaymentScalarFieldEnum = (typeof PaymentScalarFieldEnum)[keyof typeof PaymentScalarFieldEnum]
+
+
+export const PaymentAttemptScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  idempotencyKey: 'idempotencyKey',
+  providerPaymentId: 'providerPaymentId',
+  amount: 'amount',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PaymentAttemptScalarFieldEnum = (typeof PaymentAttemptScalarFieldEnum)[keyof typeof PaymentAttemptScalarFieldEnum]
 
 
 export const OutboxEventScalarFieldEnum = {

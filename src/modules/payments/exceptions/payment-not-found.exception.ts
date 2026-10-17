@@ -1,5 +1,5 @@
-import { HttpStatus } from '@nestjs/common';
-import { BaseVortexCommerceException } from 'src/common/exceptions/base-vortex-commerce-exception';
+import { HttpStatus } from "@nestjs/common";
+import { BaseVortexCommerceException } from "src/common/exceptions/base-vortex-commerce-exception";
 
 export class PaymentNotFoundException extends BaseVortexCommerceException {
   constructor(id: string) {

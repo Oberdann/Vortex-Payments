@@ -24,10 +24,26 @@ model Payment {
   providerPaymentId String?       @unique
   providerPreferenceId String?     @unique
   checkoutUrl       String?
+  currentAttemptId  String?       @unique @db.Uuid
+  attempts           PaymentAttempt[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
   @@index([status, createdAt])
+}
+
+model PaymentAttempt {
+  id                String        @id @default(uuid()) @db.Uuid
+  paymentId         String        @db.Uuid
+  idempotencyKey    String        @unique
+  providerPaymentId String?       @unique
+  amount            Decimal       @db.Decimal(10, 2)
+  status            PaymentStatus @default(PENDING)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  payment           Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
 }
 
 model OutboxEvent {

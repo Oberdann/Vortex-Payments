@@ -14,50 +14,71 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private publishing = false;
   private stopping = false;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
   ) {}
+
   onModuleInit() {
-    if (!process.env.RABBITMQ_URL)
+    if (!process.env.RABBITMQ_URL) {
       this.logger.error(
         "RABBITMQ_URL não foi configurada no Payments Service.",
       );
+    }
+
     this.timer = setInterval(
       () => void this.publishPending(),
       POLL_INTERVAL_MS,
     );
     this.timer.unref();
+
     void this.publishPending();
   }
+
   onModuleDestroy() {
     this.stopping = true;
-    if (this.timer) clearInterval(this.timer);
+
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
   }
 
   private async publishPending() {
     const url = process.env.RABBITMQ_URL;
-    if (this.publishing || this.stopping || !url) return;
+
+    if (this.publishing || this.stopping || !url) {
+      return;
+    }
+
     this.publishing = true;
     let connection: amqp.ChannelModel | undefined;
     let channel: ConfirmChannel | undefined;
+
     try {
       connection = await amqp.connect(url);
       channel = await connection.createConfirmChannel();
+
       await channel.assertExchange(RABBITMQ_EVENTS_EXCHANGE, "topic", {
         durable: true,
       });
+
       const returned = new Set<string>();
       channel.on("return", (msg) => {
-        if (msg.properties.messageId) returned.add(msg.properties.messageId);
+        if (msg.properties.messageId) {
+          returned.add(msg.properties.messageId);
+        }
       });
+
       const events = await this.prisma.outboxEvent.findMany({
         where: { publishedAt: null, nextAttemptAt: { lte: new Date() } },
         orderBy: { createdAt: "asc" },
         take: BATCH_SIZE,
       });
-      for (const event of events)
+
+      for (const event of events) {
         await this.publishOne(channel, event, returned);
+      }
     } catch (error) {
       this.logger.error(
         { errorType: error instanceof Error ? error.name : "UnknownError" },
@@ -66,6 +87,7 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
     } finally {
       await channel?.close().catch(() => undefined);
       await connection?.close().catch(() => undefined);
+
       this.publishing = false;
     }
   }
@@ -104,8 +126,11 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
         },
       );
       await channel.waitForConfirms();
-      if (returned.delete(event.id))
+
+      if (returned.delete(event.id)) {
         throw new Error("Nenhuma fila vinculada ao evento.");
+      }
+
       await this.prisma.outboxEvent.update({
         where: { id: event.id },
         data: { publishedAt: new Date(), lastError: null },
@@ -122,6 +147,7 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
           lastError: error instanceof Error ? error.name : "UnknownError",
         },
       });
+
       this.logger.warn(
         { outboxEventId: event.id, eventType: event.eventType },
         "Falha ao publicar evento do Payments; retry agendado.",

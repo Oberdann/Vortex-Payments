@@ -23,6 +23,11 @@ export * from './enums';
  */
 export type Payment = Prisma.PaymentModel
 /**
+ * Model PaymentAttempt
+ * 
+ */
+export type PaymentAttempt = Prisma.PaymentAttemptModel
+/**
  * Model OutboxEvent
  * 
  */

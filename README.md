@@ -1,24 +1,29 @@
-﻿# Vortex Payments Service
+# Vortex Payments Service
 
-Base NestJS inicial do serviço de pagamentos do Vortex Commerce.
+Microsserviço responsável por registrar pagamentos de pedidos, processar
+tentativas com o Mercado Pago e publicar as mudanças de estado para os demais
+serviços.
 
-Inclui inicialização HTTP, Swagger, logging estruturado, métricas Prometheus,
-instrumentação OpenTelemetry, persistência Prisma e a rota
-`GET /api/v1/payments/health`.
+## Fluxo
 
-O serviço cria preferências do Checkout Pro no Mercado Pago e retorna a URL para
-redirecionar o comprador. Também recebe webhooks, valida a assinatura, consulta
-o pagamento diretamente no provedor e atualiza o estado local. A publicação
-dos resultados para Orders ainda não está implementada.
+1. O serviço consome `payment.creation.requested` e registra o pagamento de
+   forma idempotente usando Inbox e Outbox.
+2. `POST /api/v1/payments` cria uma tentativa de pagamento com os dados
+   tokenizados pelo Mercado Pago.js. Envie um UUID v4 em
+   `X-Idempotency-Key` e reutilize a chave ao repetir a mesma tentativa.
+3. O webhook valida a assinatura e consulta o pagamento diretamente no Mercado
+   Pago antes de atualizar o estado local.
+4. O serviço publica `payment.ready` e `payment.status.changed` pela Outbox.
+
+O valor do pagamento e o `orderId` vêm do evento de criação do pedido; o cliente
+não define esses dados no endpoint de tentativa.
 
 ## Configuração e execução
 
-Copie `.env.example` para `.env`, configure `PAYMENTS_DB_URL`,
-`MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e o endpoint de
-OpenTelemetry. Configure `MERCADO_PAGO_NOTIFICATION_URL` apenas com uma URL HTTPS
-pública apontando para `/api/v1/payments/webhooks/mercado-pago`. Instale as
-dependências, gere o Prisma Client e aplique as migrations no banco
-`paymentsdb`:
+Configure `PAYMENTS_DB_URL`, `RABBITMQ_URL`, `MERCADO_PAGO_ACCESS_TOKEN` e
+`MERCADO_PAGO_WEBHOOK_SECRET`. `MERCADO_PAGO_NOTIFICATION_URL` é opcional e,
+quando configurada, deve usar HTTPS público e apontar para
+`/api/v1/payments/webhooks/mercado-pago`.
 
 ```bash
 npm install
@@ -26,10 +31,6 @@ npm run prisma:generate
 npm run prisma:migrate:dev
 npm run dev
 ```
-
-Para iniciar o checkout, envie `POST /api/v1/payments` com `orderId` e `amount`.
-A resposta inclui `checkoutUrl`. Consulte o registro com
-`GET /api/v1/payments/:id`.
 
 Swagger: `/doc`  
 Métricas: `/api/v1/metrics`

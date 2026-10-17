@@ -9,6 +9,7 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/Payment'
+export type * from './models/PaymentAttempt'
 export type * from './models/OutboxEvent'
 export type * from './models/InboxEvent'
 export type * from './commonInputTypes'

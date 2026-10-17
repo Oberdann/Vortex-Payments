@@ -8,10 +8,12 @@ import {
   Post,
   Query,
 } from "@nestjs/common";
+import { ApiHeader, ApiTags } from "@nestjs/swagger";
 import { PaymentsService } from "./payments.service";
 import { CreatePaymentDto } from "./dtos/create-payment.dto";
 
 @Controller("payments")
+@ApiTags("payments")
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
@@ -27,8 +29,17 @@ export class PaymentsController {
 
   @Post()
   @HttpCode(201)
-  create(@Body() input: CreatePaymentDto) {
-    return this.paymentsService.create(input);
+  @ApiHeader({
+    name: "X-Idempotency-Key",
+    required: true,
+    description:
+      "UUID único da tentativa; use a mesma chave ao repetir a requisição.",
+  })
+  create(
+    @Body() input: CreatePaymentDto,
+    @Headers("x-idempotency-key") idempotencyKey: string | undefined,
+  ) {
+    return this.paymentsService.create(input, idempotencyKey);
   }
 
   @Get(":id")

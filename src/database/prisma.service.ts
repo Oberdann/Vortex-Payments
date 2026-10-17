@@ -1,6 +1,6 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from 'generated/prisma/client';
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "generated/prisma/client";
 
 @Injectable()
 export class PrismaService
@@ -11,7 +11,7 @@ export class PrismaService
     const connectionString = process.env.PAYMENTS_DB_URL;
 
     if (!connectionString) {
-      throw new Error('A variável PAYMENTS_DB_URL não foi configurada.');
+      throw new Error("A variável PAYMENTS_DB_URL não foi configurada.");
     }
 
     super({ adapter: new PrismaPg({ connectionString }) });

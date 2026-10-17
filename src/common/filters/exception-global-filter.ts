@@ -3,9 +3,9 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
-} from '@nestjs/common';
-import { Response } from 'express';
-import { PinoLogger } from 'nestjs-pino';
+} from "@nestjs/common";
+import { Response } from "express";
+import { PinoLogger } from "nestjs-pino";
 
 @Catch()
 export class ExceptionGlobalFilter implements ExceptionFilter {
@@ -20,14 +20,14 @@ export class ExceptionGlobalFilter implements ExceptionFilter {
     const body =
       exception instanceof HttpException ? exception.getResponse() : null;
     const message =
-      typeof body === 'string'
+      typeof body === "string"
         ? body
         : ((body as { message?: string | string[] } | null)?.message ??
-          'Erro interno do servidor.');
+          "Erro interno do servidor.");
 
     this.logger.error(
       { method: request.method, url: request.url, status, err: exception },
-      'Falha ao processar requisição de pagamento.',
+      "Falha ao processar requisição de pagamento.",
     );
 
     return response.status(status).json({ message, data: [], success: false });

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vortex | Token de cartão de teste</title>
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <style>
+      :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #10131b; color: #f3f5fa; }
+      body { max-width: 680px; margin: 40px auto; padding: 0 20px; }
+      h1 { font-size: 1.6rem; }
+      p, small { color: #b8c0d4; }
+      form { display: grid; gap: 14px; margin: 24px 0; }
+      label { display: grid; gap: 6px; }
+      input, button, textarea, .secure-field { font: inherit; border-radius: 8px; padding: 10px 12px; border: 1px solid #394155; background: #191e2a; color: inherit; }
+      .secure-field { height: 22px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      button { background: #7257ff; border: 0; cursor: pointer; font-weight: 650; }
+      button:disabled { opacity: .6; cursor: wait; }
+      #result { min-height: 2em; white-space: pre-wrap; overflow-wrap: anywhere; }
+      textarea { width: 100%; box-sizing: border-box; min-height: 100px; }
+    </style>
+  </head>
+  <body>
+    <h1>Gerar token de cartão de teste</h1>
+    <p>Os campos de número, validade e CVV abaixo são iframes seguros do Mercado Pago. Os dados do cartão não passam pelos campos HTML desta página. Use a Public Key de teste e um cartão de teste.</p>
+    <form id="token-form">
+      <label>Public Key de teste<input id="public-key" autocomplete="off" required placeholder="Sua Public Key de teste" /></label>
+      <label>Número do cartão<div id="card-number" class="secure-field"></div></label>
+      <div class="row">
+        <label>Validade (MM/AA)<div id="expiration-date" class="secure-field"></div></label>
+        <label>CVV<div id="security-code" class="secure-field"></div></label>
+      </div>
+      <div class="row">
+        <label>Nome do titular<input id="name" autocomplete="cc-name" required value="APRO" /></label>
+        <label>E-mail do comprador<input id="email" type="email" required value="user@gmail.com" /></label>
+      </div>
+      <div class="row">
+        <label>Tipo de documento<input id="id-type" value="CPF" required /></label>
+        <label>Número do documento<input id="id-number" inputmode="numeric" value="12345678909" required /></label>
+      </div>
+      <button id="submit" type="submit" disabled>Aguardando campos seguros…</button>
+    </form>
+    <p id="result" role="status">Informe a Public Key para carregar os campos seguros.</p>
+    <label>Resposta do Mercado Pago<textarea id="output" readonly></textarea></label>
+    <small>O token é temporário. Copie o campo <code>id</code> e use imediatamente no POST de pagamento do Vortex. Para simular aprovação, use o cartão de teste indicado pela documentação da sua aplicação e mantenha o titular APRO.</small>
+    <script>
+      const form = document.querySelector('#token-form');
+      const result = document.querySelector('#result');
+      const output = document.querySelector('#output');
+      const button = document.querySelector('#submit');
+      let mp;
+      let secureFields = [];
+      let readyFields = 0;
+
+      function showError(error) {
+        let detail;
+        if (error instanceof Error) detail = { name: error.name, message: error.message, stack: error.stack };
+        else detail = error;
+        result.textContent = 'Falha ao gerar o token. Detalhes abaixo.';
+        try { output.value = JSON.stringify(detail, null, 2) || String(detail); }
+        catch { output.value = String(detail); }
+      }
+
+      document.querySelector('#public-key').addEventListener('change', () => {
+        const publicKey = document.querySelector('#public-key').value.trim();
+        if (!publicKey || typeof window.MercadoPago !== 'function') {
+          result.textContent = typeof window.MercadoPago === 'function'
+            ? 'Informe uma Public Key válida.'
+            : 'O SDK não carregou. Verifique a conexão e recarregue a página.';
+          return;
+        }
+        secureFields.forEach((field) => field.unmount());
+        secureFields = [];
+        readyFields = 0;
+        button.disabled = true;
+        button.textContent = 'Carregando campos seguros…';
+        output.value = '';
+        try {
+          mp = new MercadoPago(publicKey, { locale: 'pt-BR' });
+          const definitions = [
+            ['cardNumber', '#card-number', 'Número do cartão'],
+            ['expirationDate', '#expiration-date', 'MM/AA'],
+            ['securityCode', '#security-code', 'CVV'],
+          ];
+          secureFields = definitions.map(([type, container, placeholder]) => {
+            const field = mp.fields.create(type, {
+              placeholder,
+              style: { color: '#f3f5fa', fontSize: '15px', fontFamily: 'system-ui' },
+            });
+            field.on('ready', () => {
+              readyFields += 1;
+              if (readyFields === definitions.length) {
+                button.disabled = false;
+                button.textContent = 'Gerar token';
+                result.textContent = 'Campos seguros prontos. Preencha os dados de teste e gere o token.';
+              }
+            });
+            field.on('error', showError);
+            field.mount(container.slice(1));
+            return field;
+          });
+        } catch (error) {
+          showError(error);
+        }
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!mp || readyFields !== 3) return;
+        button.disabled = true;
+        button.textContent = 'Gerando token…';
+        result.textContent = 'Gerando token…';
+        output.value = '';
+        try {
+          const token = await mp.fields.createCardToken({
+            cardholderName: document.querySelector('#name').value.trim(),
+            identificationType: document.querySelector('#id-type').value.trim(),
+            identificationNumber: document.querySelector('#id-number').value.trim(),
+          });
+          output.value = JSON.stringify(token ?? { detail: 'O SDK retornou vazio.' }, null, 2);
+          result.textContent = token?.id
+            ? 'Token gerado. Copie o campo id e use-o no POST /api/v1/payments.'
+            : 'O Mercado Pago não retornou um id de token. Veja a resposta abaixo.';
+        } catch (error) {
+          showError(error);
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Gerar token';
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,18 +1,18 @@
-import * as dotenv from 'dotenv';
+import * as dotenv from "dotenv";
 dotenv.config();
 
-import './observability/instrumentation';
+import "./observability/instrumentation";
 
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-import { MetricsInterceptor } from './common/interceptors/metrics-interceptor';
+import { ValidationPipe } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { AppModule } from "./app.module";
+import { MetricsInterceptor } from "./common/interceptors/metrics-interceptor";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -23,12 +23,12 @@ async function bootstrap() {
   app.useGlobalInterceptors(new MetricsInterceptor());
 
   const config = new DocumentBuilder()
-    .setTitle('Vortex API - Payments')
-    .setDescription('Microsserviço de pagamentos do Vortex Commerce')
-    .setVersion('0.0.1')
+    .setTitle("Vortex API - Payments")
+    .setDescription("Microsserviço de pagamentos do Vortex Commerce")
+    .setVersion("0.0.1")
     .build();
 
-  SwaggerModule.setup('doc', app, SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup("doc", app, SwaggerModule.createDocument(app, config));
   await app.listen(process.env.PORT ?? 3000);
 }
 

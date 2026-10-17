@@ -16,7 +16,44 @@ import {
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const DLX = "vortex.events.dlx";
+
+interface PaymentCreationRequestedEvent {
+  eventId: string;
+  eventType: string;
+  data: {
+    orderId: string;
+    amount: string;
+  };
+}
+
+function isPaymentCreationRequestedEvent(
+  value: unknown,
+): value is PaymentCreationRequestedEvent {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const event = value as Record<string, unknown>;
+  const data = event.data;
+
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+
+  const paymentData = data as Record<string, unknown>;
+
+  return (
+    typeof event.eventId === "string" &&
+    UUID.test(event.eventId) &&
+    event.eventType === PAYMENT_CREATION_REQUESTED_EVENT &&
+    typeof paymentData.orderId === "string" &&
+    UUID.test(paymentData.orderId) &&
+    typeof paymentData.amount === "string" &&
+    /^\d+(\.\d{1,2})?$/.test(paymentData.amount)
+  );
+}
 
 @Injectable()
 export class PaymentCreationRequestsConsumer
@@ -32,20 +69,32 @@ export class PaymentCreationRequestsConsumer
     private readonly payments: PaymentsService,
     private readonly logger: PinoLogger,
   ) {}
+
   onModuleInit() {
     void this.connect();
   }
+
   async onModuleDestroy() {
     this.stopping = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (this.consumerTag)
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    if (this.consumerTag) {
       await this.channel?.cancel(this.consumerTag).catch(() => undefined);
+    }
+
     await this.connection?.close().catch(() => undefined);
   }
 
   private async connect() {
-    if (this.stopping || this.connection) return;
+    if (this.stopping || this.connection) {
+      return;
+    }
+
     const url = process.env.RABBITMQ_URL;
+
     if (!url) {
       this.logger.error(
         "RABBITMQ_URL não foi configurada no Payments Service.",
@@ -63,15 +112,21 @@ export class PaymentCreationRequestsConsumer
       });
       this.channel = await this.connection.createConfirmChannel();
       this.channel.on("error", () => undefined);
+
       await this.declareTopology(this.channel);
       await this.channel.prefetch(5);
-      const result = await this.channel.consume(
+
+      const channel = this.channel;
+      const result = await channel.consume(
         PAYMENTS_CREATION_REQUESTS_QUEUE,
         (msg) => {
-          if (msg) void this.handle(this.channel!, msg);
+          if (msg) {
+            void this.handle(channel, msg);
+          }
         },
         { noAck: false },
       );
+
       this.consumerTag = result.consumerTag;
     } catch (error) {
       this.logger.error(
@@ -79,6 +134,7 @@ export class PaymentCreationRequestsConsumer
         "Falha ao conectar consumidor de solicitações de pagamento.",
       );
       await this.connection?.close().catch(() => undefined);
+
       this.connection = undefined;
       this.channel = undefined;
       this.reconnect();
@@ -121,21 +177,15 @@ export class PaymentCreationRequestsConsumer
   }
 
   private async handle(channel: ConfirmChannel, message: ConsumeMessage) {
-    let event: any;
+    let event: unknown;
     try {
       event = JSON.parse(message.content.toString());
     } catch {
       channel.nack(message, false, false);
       return;
     }
-    const data = event?.data;
-    if (
-      !UUID.test(event?.eventId ?? "") ||
-      event?.eventType !== PAYMENT_CREATION_REQUESTED_EVENT ||
-      !UUID.test(data?.orderId ?? "") ||
-      typeof data?.amount !== "string" ||
-      !/^\d+(\.\d{1,2})?$/.test(data.amount)
-    ) {
+
+    if (!isPaymentCreationRequestedEvent(event)) {
       this.logger.warn(
         { messageId: message.properties.messageId },
         "Solicitação de pagamento inválida enviada à DLQ.",
@@ -143,10 +193,11 @@ export class PaymentCreationRequestsConsumer
       channel.nack(message, false, false);
       return;
     }
+
     try {
       await this.payments.handlePaymentCreationRequested(event.eventId, {
-        orderId: data.orderId,
-        amount: data.amount,
+        orderId: event.data.orderId,
+        amount: event.data.amount,
       });
       channel.ack(message);
     } catch (error) {
@@ -154,11 +205,13 @@ export class PaymentCreationRequestsConsumer
         channel.ack(message);
         return;
       }
+
       const retries = Number(message.properties.headers?.retryCount ?? 0);
       if (retries >= MAX_PROCESSING_RETRIES) {
         channel.nack(message, false, false);
         return;
       }
+
       try {
         channel.sendToQueue(
           PAYMENTS_CREATION_REQUESTS_RETRY_QUEUE,
@@ -175,19 +228,24 @@ export class PaymentCreationRequestsConsumer
       } catch {
         channel.nack(message, false, false);
       }
+
       this.logger.warn(
         { errorType: error instanceof Error ? error.name : "UnknownError" },
-        "Falha ao criar cobrança; nova tentativa agendada.",
+        "Falha ao preparar pagamento; nova tentativa agendada.",
       );
     }
   }
 
   private reconnect() {
-    if (this.stopping || this.reconnectTimer) return;
+    if (this.stopping || this.reconnectTimer) {
+      return;
+    }
+
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       void this.connect();
     }, 5000);
+
     this.reconnectTimer.unref();
   }
 }
